@@ -1753,30 +1753,15 @@
 
 <script src="script.js"></script>
 
-<!-- CÓDIGO DE PAGAMENTO E PARCELAMENTO (APARECE APENAS AO CLICAR EM PAGAR) -->
+<!-- SISTEMA COMPLETO DE COMPRA: ADICIONAR AO CARRINHO E FINALIZAR COMPRA -->
 <script>
   document.addEventListener("DOMContentLoaded", function () {
-    // 1. Cria o Botão de Pagamento na página (caso queira que ele fique visível no seu layout)
-    const btnAbrirPagamento = document.createElement("button");
-    btnAbrirPagamento.textContent = "💳 Finalizar Compra / Pagamento";
-    btnAbrirPagamento.style.cssText = `
-      display: inline-block;
-      margin-top: 15px;
-      padding: 12px 20px;
-      background: #27ae60;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 1rem;
-      font-weight: bold;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    `;
+    let carrinho = [];
 
-    // 2. Cria a Janela de Pagamento (Modal) que fica oculta inicialmente
-    const modalPagamento = document.createElement("div");
-    modalPagamento.id = "modal-pagamento-parcelamento";
-    modalPagamento.style.cssText = `
+    // 1. Cria a Modal do Carrinho e Finalização da Compra
+    const modalCarrinho = document.createElement("div");
+    modalCarrinho.id = "modal-carrinho-checkout";
+    modalCarrinho.style.cssText = `
       display: none;
       position: fixed;
       top: 0;
@@ -1790,84 +1775,219 @@
       font-family: inherit;
     `;
 
-    modalPagamento.innerHTML = `
-      <div style="background: #fff; padding: 25px; border-radius: 10px; width: 90%; max-width: 400px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); position: relative;">
-        <button id="fecharModalBtn" style="position: absolute; top: 10px; right: 15px; background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #666;">&times;</button>
+    modalCarrinho.innerHTML = `
+      <div style="background: #fff; padding: 25px; border-radius: 10px; width: 90%; max-width: 450px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); position: relative; max-height: 90vh; display: flex; flex-direction: column;">
+        <button id="fecharModalCarrinho" style="position: absolute; top: 10px; right: 15px; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666;">&times;</button>
         
-        <h3 style="margin-top: 0; color: #1e3c72; margin-bottom: 15px;">Escolha o Parcelamento</h3>
+        <h3 style="margin-top: 0; color: #1e3c72; margin-bottom: 15px;">🛒 Seu Carrinho de Compras</h3>
         
-        <div style="margin-bottom: 12px;">
-          <label for="valorModalInput" style="font-size: 0.9rem; font-weight: bold; display: block; margin-bottom: 5px;">Valor Total (R$):</label>
-          <input type="number" id="valorModalInput" value="150.00" step="0.01" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+        <div id="itensCarrinhoContainer" style="overflow-y: auto; max-height: 200px; margin-bottom: 15px; border-top: 1px solid #eee; border-bottom: 1px solid #eee; padding: 10px 0;">
+          <p style="color: #888; text-align: center; margin: 10px 0;">Nenhum item no carrinho.</p>
         </div>
 
-        <button id="btnCalcularModal" style="width: 100%; padding: 10px; background: #27ae60; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-bottom: 15px;">Calcular Parcelas</button>
+        <div style="font-size: 1.1rem; font-weight: bold; margin-bottom: 15px; display: flex; justify-content: space-between;">
+          <span>Total do Pedido:</span>
+          <span id="valorTotalCarrinho" style="color: #27ae60;">R$ 0,00</span>
+        </div>
 
-        <ul id="listaModalParcelas" style="list-style: none; padding: 0; margin: 0; max-height: 200px; overflow-y: auto; border-top: 1px solid #eee;"></ul>
+        <!-- Opções de Parcelamento que surgem ao Clicar em Finalizar Compra -->
+        <div id="secaoPagamentoParcelas" style="border-top: 2px dashed #ddd; padding-top: 15px; display: none;">
+          <h4 style="color: #1e3c72; margin-bottom: 10px;">Opções de Parcelamento (Cartão)</h4>
+          <ul id="listaModalParcelas" style="list-style: none; padding: 0; margin: 0; max-height: 140px; overflow-y: auto;"></ul>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 10px;">
+          <button id="btnContinuarComprando" style="flex: 1; padding: 10px; background: #7f8c8d; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">+ Adicionar Mais</button>
+          <button id="btnIrParaPagamento" style="flex: 1.5; padding: 10px; background: #27ae60; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">💳 Finalizar Compra</button>
+        </div>
       </div>
     `;
+    document.body.appendChild(modalCarrinho);
 
-    // Adiciona os elementos ao corpo da página sem alterar o design existente
-    document.body.appendChild(modalPagamento);
-    
-    // Insere o botão de pagamento próximo ao conteúdo principal ou no final da página
-    const localInsercao = document.querySelector(".container") || document.querySelector("main") || document.body;
-    localInsercao.appendChild(btnAbrirPagamento);
+    // 2. Conecta o fluxo de compra/carrinho aos botões da página
+    function configurarBotoes() {
+      const todosBotoes = Array.from(document.querySelectorAll("button, a"));
+      
+      todosBotoes.forEach((btn) => {
+        const texto = btn.innerText.toLowerCase().trim();
 
-    // 3. Regras e Lógica de Abertura / Fechamento
-    const maxParcelas = 4;
-    const parcelasSemJuros = 2;
-    const taxaJuros = 0.0199;
+        if (texto.includes("comprar") || texto.includes("buy")) {
+          const cardPai = btn.parentElement;
 
-    function calcular() {
-      const valorInput = document.getElementById("valorModalInput").value;
+          // Ajusta tamanho do botão Comprar
+          btn.style.padding = "6px 12px";
+          btn.style.fontSize = "0.85rem";
+
+          // Cria botão "Carrinho" entre Ver Detalhes e Comprar se não existir
+          if (!cardPai.querySelector(".btn-carrinho-meio")) {
+            const btnCarrinho = document.createElement("button");
+            btnCarrinho.textContent = "Carrinho";
+            btnCarrinho.className = "btn-carrinho-meio";
+            btnCarrinho.style.cssText = `
+              margin: 0 4px;
+              padding: 6px 12px;
+              background-color: #f39c12;
+              color: white;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+              font-weight: 600;
+              font-size: 0.85rem;
+              display: inline-block;
+              vertical-align: middle;
+            `;
+
+            // Ao clicar em Carrinho, solicita a quantidade e envia ao carrinho
+            btnCarrinho.addEventListener("click", function (e) {
+              e.preventDefault();
+              solicitarEAdicionar(cardPai);
+            });
+
+            cardPai.insertBefore(btnCarrinho, btn);
+          }
+
+          // Ao clicar em Comprar, solicita a quantidade, insere no carrinho e abre para Finalizar
+          btn.addEventListener("click", function (e) {
+            e.preventDefault();
+            solicitarEAdicionar(cardPai);
+          });
+        }
+      });
+    }
+
+    function solicitarEAdicionar(cardPai) {
+      const containerCard = cardPai.closest("div, section, article") || cardPai;
+      const tituloEl = containerCard.querySelector("h1, h2, h3, h4");
+      const precoEl = containerCard.querySelector(".preco, .price, span");
+
+      const nomeProduto = tituloEl ? tituloEl.innerText : "Produto Selecionado";
+      let precoNum = 150.00;
+
+      if (precoEl) {
+        let match = precoEl.innerText.replace("R$", "").replace(/\s/g, "").replace(",", ".");
+        if (!isNaN(parseFloat(match))) precoNum = parseFloat(match);
+      }
+
+      let qtdStr = prompt(`Quantas unidades de "${nomeProduto}" deseja adicionar ao carrinho?`, "1");
+      if (qtdStr === null) return;
+
+      let quantidade = parseInt(qtdStr);
+      if (isNaN(quantidade) || quantidade <= 0) {
+        alert("Por favor, informe uma quantidade válida.");
+        return;
+      }
+
+      adicionarAoCarrinho(nomeProduto, precoNum, quantidade);
+      abrirModalCarrinho();
+    }
+
+    setTimeout(configurarBotoes, 300);
+
+    // 3. Gerenciamento do Carrinho
+    function adicionarAoCarrinho(nome, precoUnitario, quantidade) {
+      let itemExistente = carrinho.find(item => item.nome === nome);
+      if (itemExistente) {
+        itemExistente.quantidade += quantidade;
+      } else {
+        carrinho.push({ nome, preco: precoUnitario, quantidade });
+      }
+      atualizarUI();
+    }
+
+    function atualizarUI() {
+      const containerItens = document.getElementById("itensCarrinhoContainer");
+      const totalEl = document.getElementById("valorTotalCarrinho");
+
+      if (carrinho.length === 0) {
+        containerItens.innerHTML = `<p style="color: #888; text-align: center; margin: 10px 0;">Nenhum item no carrinho.</p>`;
+        totalEl.textContent = "R$ 0,00";
+        return;
+      }
+
+      let html = "";
+      let totalGeral = 0;
+
+      carrinho.forEach((item, idx) => {
+        let subtotal = item.preco * item.quantidade;
+        totalGeral += subtotal;
+
+        html += `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.9rem; border-bottom: 1px solid #f9f9f9; padding-bottom: 6px;">
+            <div>
+              <strong>${item.nome}</strong><br>
+              <span style="color: #666; font-size: 0.8rem;">Qtd: ${item.quantidade}x R$ ${item.preco.toFixed(2).replace(".", ",")}</span>
+            </div>
+            <div style="text-align: right;">
+              <span style="color: #27ae60; font-weight: bold; display: block; margin-bottom: 4px;">R$ ${subtotal.toFixed(2).replace(".", ",")}</span>
+              <button onclick="removerItem(${idx})" style="background: #e74c3c; color: white; border: none; border-radius: 3px; padding: 2px 6px; cursor: pointer; font-size: 0.8rem;">Remover</button>
+            </div>
+          </div>
+        `;
+      });
+
+      containerItens.innerHTML = html;
+      totalEl.textContent = `R$ ${totalGeral.toFixed(2).replace(".", ",")}`;
+    }
+
+    window.removerItem = function (index) {
+      carrinho.splice(index, 1);
+      atualizarUI();
+      document.getElementById("secaoPagamentoParcelas").style.display = "none";
+    };
+
+    function abrirModalCarrinho() {
+      modalCarrinho.style.display = "flex";
+      document.getElementById("secaoPagamentoParcelas").style.display = "none";
+    }
+
+    // 4. Finalização e Parcelamento
+    function calcularParcelas() {
       const lista = document.getElementById("listaModalParcelas");
       lista.innerHTML = "";
 
-      const valor = parseFloat(valorInput);
-      if (isNaN(valor) || valor <= 0) {
-        lista.innerHTML = "<li style='padding: 8px; color: red;'>Digite um valor válido.</li>";
-        return;
-      }
+      let total = carrinho.reduce((acc, item) => acc + (item.preco * item.quantidade), 0);
+      if (total <= 0) return;
+
+      const maxParcelas = 4;
+      const parcelasSemJuros = 2;
+      const taxaJuros = 0.0199;
 
       for (let i = 1; i <= maxParcelas; i++) {
         let valorParcela = 0;
         let textoJuros = "";
 
         if (i <= parcelasSemJuros) {
-          valorParcela = valor / i;
+          valorParcela = total / i;
           textoJuros = "<span style='color: #27ae60; font-weight: bold;'>sem juros</span>";
         } else {
-          const montante = valor * Math.pow(1 + taxaJuros, i);
+          const montante = total * Math.pow(1 + taxaJuros, i);
           valorParcela = montante / i;
           textoJuros = "<span style='color: #e67e22;'>com juros</span>";
         }
 
-        const item = document.createElement("li");
-        item.style.cssText = "padding: 8px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; font-size: 0.9rem;";
-        item.innerHTML = `<span><strong>${i}x</strong> de R$ ${valorParcela.toFixed(2).replace(".", ",")}</span> ${textoJuros}`;
-        lista.appendChild(item);
+        const li = document.createElement("li");
+        li.style.cssText = "padding: 6px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; font-size: 0.9rem;";
+        li.innerHTML = `<span><strong>${i}x</strong> de R$ ${valorParcela.toFixed(2).replace(".", ",")}</span> ${textoJuros}`;
+        lista.appendChild(li);
       }
     }
 
-    // Eventos de clique
-    btnAbrirPagamento.addEventListener("click", function () {
-      modalPagamento.style.display = "flex";
-      calcular();
+    document.getElementById("fecharModalCarrinho").addEventListener("click", function () {
+      modalCarrinho.style.display = "none";
     });
 
-    document.getElementById("fecharModalBtn").addEventListener("click", function () {
-      modalPagamento.style.display = "none";
+    document.getElementById("btnContinuarComprando").addEventListener("click", function () {
+      modalCarrinho.style.display = "none";
     });
 
-    // Fecha ao clicar fora da caixa branca
-    modalPagamento.addEventListener("click", function (e) {
-      if (e.target === modalPagamento) {
-        modalPagamento.style.display = "none";
+    document.getElementById("btnIrParaPagamento").addEventListener("click", function () {
+      if (carrinho.length === 0) {
+        alert("O carrinho está vazio.");
+        return;
       }
+      document.getElementById("secaoPagamentoParcelas").style.display = "block";
+      calcularParcelas();
     });
-
-    document.getElementById("btnCalcularModal").addEventListener("click", calcular);
   });
 </script>
 
