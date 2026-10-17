@@ -1753,50 +1753,80 @@
 
 <script src="script.js"></script>
 
-<!-- CÓDIGO APENAS PARA ADICIONAR O PARCELAMENTO (NÃO ALTERA NADA DA SUA PÁGINA) -->
+<!-- CÓDIGO DE PAGAMENTO E PARCELAMENTO (APARECE APENAS AO CLICAR EM PAGAR) -->
 <script>
   document.addEventListener("DOMContentLoaded", function () {
-    // 1. Regras do parcelamento
-    const maxParcelas = 5;
-    const parcelasSemJuros = 2;
-    const taxaJuros = 0.0199; // 1.99% ao mês para parcelas acima de 3x
+    // 1. Cria o Botão de Pagamento na página (caso queira que ele fique visível no seu layout)
+    const btnAbrirPagamento = document.createElement("button");
+    btnAbrirPagamento.textContent = "💳 Finalizar Compra / Pagamento";
+    btnAbrirPagamento.style.cssText = `
+      display: inline-block;
+      margin-top: 15px;
+      padding: 12px 20px;
+      background: #27ae60;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: bold;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    `;
 
-    // 2. Criação do container da opção de parcelamento de forma isolada
-    const parcelamentoContainer = document.createElement("div");
-    parcelamentoContainer.id = "secao-parcelamento-adicionada";
-    parcelamentoContainer.style.cssText = `
-      margin-top: 20px;
-      padding: 15px;
-      background: rgba(255, 255, 255, 0.9);
-      border: 1px solid #ddd;
-      border-radius: 8px;
+    // 2. Cria a Janela de Pagamento (Modal) que fica oculta inicialmente
+    const modalPagamento = document.createElement("div");
+    modalPagamento.id = "modal-pagamento-parcelamento";
+    modalPagamento.style.cssText = `
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 9999;
+      justify-content: center;
+      align-items: center;
       font-family: inherit;
-      color: #333;
     `;
 
-    parcelamentoContainer.innerHTML = `
-      <h4 style="margin-top:0; margin-bottom:10px; font-size:1.1rem;">Opções de Parcelamento</h4>
-      <div style="display: flex; gap: 10px; margin-bottom: 10px; align-items: center; flex-wrap: wrap;">
-        <label for="valorSimuladoInput" style="font-size:0.9rem; font-weight:bold;">Valor para simular (R$):</label>
-        <input type="number" id="valorSimuladoInput" value="150.00" step="0.01" style="padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; max-width: 140px;">
-        <button id="btnCalcularParcelas" style="padding: 6px 12px; background: #27ae60; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Simular</button>
+    modalPagamento.innerHTML = `
+      <div style="background: #fff; padding: 25px; border-radius: 10px; width: 90%; max-width: 400px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); position: relative;">
+        <button id="fecharModalBtn" style="position: absolute; top: 10px; right: 15px; background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #666;">&times;</button>
+        
+        <h3 style="margin-top: 0; color: #1e3c72; margin-bottom: 15px;">Escolha o Parcelamento</h3>
+        
+        <div style="margin-bottom: 12px;">
+          <label for="valorModalInput" style="font-size: 0.9rem; font-weight: bold; display: block; margin-bottom: 5px;">Valor Total (R$):</label>
+          <input type="number" id="valorModalInput" value="150.00" step="0.01" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+        </div>
+
+        <button id="btnCalcularModal" style="width: 100%; padding: 10px; background: #27ae60; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-bottom: 15px;">Calcular Parcelas</button>
+
+        <ul id="listaModalParcelas" style="list-style: none; padding: 0; margin: 0; max-height: 200px; overflow-y: auto; border-top: 1px solid #eee;"></ul>
       </div>
-      <ul id="listaDeParcelasSimuladas" style="list-style: none; padding: 0; margin: 0; max-height: 180px; overflow-y: auto; border-top: 1px solid #eee;"></ul>
     `;
 
-    // 3. Localiza onde inserir na página (procura o elemento principal do seu conteúdo)
-    const containerExistente = document.querySelector(".container") || document.querySelector("main") || document.body;
-    containerExistente.appendChild(parcelamentoContainer);
+    // Adiciona os elementos ao corpo da página sem alterar o design existente
+    document.body.appendChild(modalPagamento);
+    
+    // Insere o botão de pagamento próximo ao conteúdo principal ou no final da página
+    const localInsercao = document.querySelector(".container") || document.querySelector("main") || document.body;
+    localInsercao.appendChild(btnAbrirPagamento);
 
-    // 4. Lógica de cálculo
+    // 3. Regras e Lógica de Abertura / Fechamento
+    const maxParcelas = 4;
+    const parcelasSemJuros = 2;
+    const taxaJuros = 0.0199;
+
     function calcular() {
-      const valorInput = document.getElementById("valorSimuladoInput").value;
-      const lista = document.getElementById("listaDeParcelasSimuladas");
+      const valorInput = document.getElementById("valorModalInput").value;
+      const lista = document.getElementById("listaModalParcelas");
       lista.innerHTML = "";
 
       const valor = parseFloat(valorInput);
       if (isNaN(valor) || valor <= 0) {
-        lista.innerHTML = "<li style='padding:8px; color:red;'>Digite um valor válido.</li>";
+        lista.innerHTML = "<li style='padding: 8px; color: red;'>Digite um valor válido.</li>";
         return;
       }
 
@@ -1814,16 +1844,30 @@
         }
 
         const item = document.createElement("li");
-        item.style.cssText = "padding: 6px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; font-size: 0.9rem;";
+        item.style.cssText = "padding: 8px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; font-size: 0.9rem;";
         item.innerHTML = `<span><strong>${i}x</strong> de R$ ${valorParcela.toFixed(2).replace(".", ",")}</span> ${textoJuros}`;
         lista.appendChild(item);
       }
     }
 
-    document.getElementById("btnCalcularParcelas").addEventListener("click", calcular);
-    
-    // Executa a primeira simulação automaticamente
-    calcular();
+    // Eventos de clique
+    btnAbrirPagamento.addEventListener("click", function () {
+      modalPagamento.style.display = "flex";
+      calcular();
+    });
+
+    document.getElementById("fecharModalBtn").addEventListener("click", function () {
+      modalPagamento.style.display = "none";
+    });
+
+    // Fecha ao clicar fora da caixa branca
+    modalPagamento.addEventListener("click", function (e) {
+      if (e.target === modalPagamento) {
+        modalPagamento.style.display = "none";
+      }
+    });
+
+    document.getElementById("btnCalcularModal").addEventListener("click", calcular);
   });
 </script>
 
